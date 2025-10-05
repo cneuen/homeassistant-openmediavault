@@ -94,5 +94,5 @@ A new sensor is available to monitor the health of your RAID arrays.
 ## Merged Pull Requests
 
 This version incorporates the following pull requests from the original repository:
-- PR #1: (User to fill in)
-- PR #2: (User to fill in)
+- [Temperature and CPU Fix](https://github.com/tomaae/homeassistant-openmediavault/pull/160)
+- [Add SMART overall drive health to "disk" entry](https://github.com/tomaae/homeassistant-openmediavault/pull/159)
