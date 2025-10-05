@@ -1,6 +1,4 @@
 # OpenMediaVault integration for Home Assistant
-
-> Forked from [tomaae/homeassistant-openmediavault](https://github.com/tomaae/homeassistant-openmediavault)
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/tomaae/homeassistant-openmediavault?style=plastic)
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=plastic)](https://github.com/hacs/integration)
 ![Project Stage](https://img.shields.io/badge/project%20stage-development-yellow.svg?style=plastic)
@@ -71,3 +69,30 @@ logger:
   logs:
     custom_components.openmediavault: debug
 ```
+# Changes in this fork
+
+This version includes several changes and improvements over the original repository.
+
+## New Sensors
+
+### GPU Sensors
+This integration now provides sensors to monitor your GPU.
+
+| Sensor ID | Name | Unit |
+|---|---|---|
+| `system_gpuUtilization` | GPU load | % |
+| `system_gpu_freq_cur` | GPU Current Frequency | MHz |
+| `system_gpu_freq_max` | GPU Max Frequency | MHz |
+
+### RAID Sensor
+A new sensor is available to monitor the health of your RAID arrays.
+
+| Sensor ID | Name | Attributes |
+|---|---|---|
+| `raid` | (Name of the RAID device) | `state`, `level`, `health_indicator`, `action_percent` |
+
+## Merged Pull Requests
+
+This version incorporates the following pull requests from the original repository:
+- PR #1: (User to fill in)
+- PR #2: (User to fill in)
