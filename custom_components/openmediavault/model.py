@@ -139,12 +139,13 @@ class OMVEntity:
         self._ctrl = omv_controller
         self._attr_extra_state_attributes = {ATTR_ATTRIBUTION: ATTRIBUTION}
         self._uid = uid
+
+    @property
+    def _data(self) -> dict:
+        """Return the data for this entity."""
         if self._uid:
-            self._data = omv_controller.data[self.entity_description.data_path][
-                self._uid
-            ]
-        else:
-            self._data = omv_controller.data[self.entity_description.data_path]
+            return self._ctrl.data[self.entity_description.data_path][self._uid]
+        return self._ctrl.data[self.entity_description.data_path]
 
     @property
     def name(self) -> str:

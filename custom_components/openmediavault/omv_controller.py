@@ -4,6 +4,8 @@ import asyncio
 import pytz
 from datetime import datetime, timedelta
 import logging
+import json
+import re
 
 
 
@@ -62,6 +64,8 @@ class OMVControllerData(object):
             "kvm": {},
             "compose": {},
             "temperature": {},
+            "gpuinfo": {},
+            "raid": {},
         }
 
         self.listeners = []
@@ -210,9 +214,114 @@ class OMVControllerData(object):
         ):
             await self.hass.async_add_executor_job(self.get_compose)
 
+        await self.hass.async_add_executor_job(self.get_gpuinfo)
+        await self.hass.async_add_executor_job(self.get_raid)
+
         async_dispatcher_send(self.hass, self.signal_update)
         self.lock.release()
 
+    # ---------------------------
+    #   get_gpuinfo
+    # ---------------------------
+    def get_gpuinfo(self):
+        """Get GPU info from sysfs."""
+        _LOGGER.info("Attempting to update GPU info...")
+        # Paths for Intel GPU frequency information in sysfs
+        PATH_GPU_CUR_FREQ = "/sys/class/drm/card0/gt_cur_freq_mhz"
+        PATH_GPU_MAX_FREQ = "/sys/class/drm/card0/gt_max_freq_mhz"
+
+        cur_freq = None
+        max_freq = None
+
+        try:
+            with open(PATH_GPU_CUR_FREQ, 'r') as f:
+                cur_freq = int(f.read().strip())
+        except FileNotFoundError:
+            _LOGGER.warning(f"GPU sysfs file not found: {PATH_GPU_CUR_FREQ}")
+        except (ValueError, TypeError) as e:
+            _LOGGER.warning(f"Could not parse integer from GPU file: {PATH_GPU_CUR_FREQ} - {e}")
+
+        try:
+            with open(PATH_GPU_MAX_FREQ, 'r') as f:
+                max_freq = int(f.read().strip())
+        except FileNotFoundError:
+            _LOGGER.warning(f"GPU sysfs file not found: {PATH_GPU_MAX_FREQ}")
+        except (ValueError, TypeError) as e:
+            _LOGGER.warning(f"Could not parse integer from GPU file: {PATH_GPU_MAX_FREQ} - {e}")
+
+        load_percent = None
+        if cur_freq is not None and max_freq is not None and max_freq > 0:
+            load_percent = round((cur_freq / max_freq) * 100, 1)
+
+        _LOGGER.info(f"GPU stats read: cur_freq={cur_freq}, max_freq={max_freq}, load_percent={load_percent}")
+
+        # Prepare the final JSON payload
+        response_payload = {
+            "vendor": "intel",
+            "model": "Intel Graphics (from sysfs)",
+            "load_percent": load_percent,
+            "cur_freq": cur_freq,
+            "max_freq": max_freq,
+            "temperature_celsius": None,  # Placeholder for future
+            "memory_used_percent": None,  # Placeholder for future
+        }
+        self.data["gpuinfo"] = response_payload
+
+    # ---------------------------
+    #   get_raid
+    # ---------------------------
+    def get_raid(self):
+        """Get RAID status from /proc/mdstat."""
+        PATH_MDSTAT = "/proc/mdstat"
+        self.data["raid"] = {}
+
+        try:
+            with open(PATH_MDSTAT, 'r') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            _LOGGER.debug(f"RAID status file not found: {PATH_MDSTAT}")
+            return
+
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            if line.startswith("md"):
+                parts = line.split()
+                device = parts[0]
+                state = parts[2]
+                raid_level = parts[3]
+                
+                i += 1
+                health_line = lines[i].strip()
+                health_indicator = health_line.split("[")[-1].split("]")[0]
+
+                action = None
+                action_percent = None
+                status = "clean"
+
+                # Check for action on the next line (resync, check, recover)
+                if i + 1 < len(lines) and ("resync" in lines[i+1] or "check" in lines[i+1] or "recover" in lines[i+1]):
+                    i += 1
+                    action_line = lines[i].strip()
+                    match = re.search(r'(\w+)\s*=\s*([\d\.]+)%', action_line)
+                    if match:
+                        action = match.group(1)
+                        action_percent = float(match.group(2))
+
+                if action:
+                    status = action
+                elif "_" in health_indicator:
+                    status = "degraded"
+
+                self.data["raid"][device] = {
+                    "device": device,
+                    "state": state,
+                    "level": raid_level,
+                    "health": status,
+                    "health_indicator": health_indicator,
+                    "action_percent": action_percent,
+                }
+            i += 1
 
     # ---------------------------
     #   get_hwinfo
