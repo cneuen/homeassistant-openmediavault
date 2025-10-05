@@ -96,3 +96,36 @@ A new sensor is available to monitor the health of your RAID arrays.
 This version incorporates the following pull requests from the original repository:
 - [Temperature and CPU Fix](https://github.com/tomaae/homeassistant-openmediavault/pull/160)
 - [Add SMART overall drive health to "disk" entry](https://github.com/tomaae/homeassistant-openmediavault/pull/159)
+
+# Prerequisites
+
+This integration relies on information from the following system files:
+*   `/sys/class/drm/card*/device/gpu_busy_percent` for GPU utilization.
+*   `/sys/class/drm/card*/gt_cur_freq_mhz` for GPU current frequency.
+*   `/sys/class/drm/card*/gt_max_freq_mhz` for GPU max frequency.
+*   `/proc/mdstat` for RAID status.
+
+## Docker
+
+When running Home Assistant in a Docker container, you must expose these files and directories from the host to the container for the integration to work correctly.
+
+*   For GPU monitoring, you need to mount the `/sys/class/drm` directory.
+*   For RAID monitoring, you need to mount the `/proc/mdstat` file.
+
+Example `docker run` command:
+
+```bash
+docker run ... -v /sys/class/drm:/sys/class/drm:ro -v /proc/mdstat:/proc/mdstat:ro ...
+```
+
+Example `docker-compose.yml`:
+
+```yaml
+services:
+  homeassistant:
+    ...
+    volumes:
+      - /sys/class/drm:/sys/class/drm:ro
+      - /proc/mdstat:/proc/mdstat:ro
+    ...
+```
