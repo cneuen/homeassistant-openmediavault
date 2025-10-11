@@ -53,6 +53,7 @@ class OMVControllerData(object):
         self.config_entry = config_entry
         self.name = config_entry.data[CONF_NAME]
         self.host = config_entry.data[CONF_HOST]
+        self._gpu_load_counter = 0
 
         self.data = {
             "hwinfo": {},
@@ -225,47 +226,58 @@ class OMVControllerData(object):
     # ---------------------------
     def get_gpuinfo(self):
         """Get GPU info from sysfs."""
-        _LOGGER.info("Attempting to update GPU info...")
-        # Paths for Intel GPU frequency information in sysfs
+        _LOGGER.debug("Attempting to update GPU info...")
         PATH_GPU_CUR_FREQ = "/sys/class/drm/card0/gt_cur_freq_mhz"
         PATH_GPU_MAX_FREQ = "/sys/class/drm/card0/gt_max_freq_mhz"
+        CONFIRMATION_COUNT = 2
 
         cur_freq = None
-        max_freq = None
-
         try:
             with open(PATH_GPU_CUR_FREQ, 'r') as f:
                 cur_freq = int(f.read().strip())
         except FileNotFoundError:
-            _LOGGER.warning(f"GPU sysfs file not found: {PATH_GPU_CUR_FREQ}")
+            _LOGGER.debug(f"GPU sysfs file not found: {PATH_GPU_CUR_FREQ}")
+            self.data["gpuinfo"] = {} # Clear data if file not found
+            return
         except (ValueError, TypeError) as e:
             _LOGGER.warning(f"Could not parse integer from GPU file: {PATH_GPU_CUR_FREQ} - {e}")
+            return # Keep old data on parse error
 
+        max_freq = None
         try:
             with open(PATH_GPU_MAX_FREQ, 'r') as f:
                 max_freq = int(f.read().strip())
-        except FileNotFoundError:
-            _LOGGER.warning(f"GPU sysfs file not found: {PATH_GPU_MAX_FREQ}")
-        except (ValueError, TypeError) as e:
-            _LOGGER.warning(f"Could not parse integer from GPU file: {PATH_GPU_MAX_FREQ} - {e}")
+        except (FileNotFoundError, ValueError, TypeError) as e:
+            _LOGGER.warning(f"Could not read or parse max GPU frequency: {e}")
+            max_freq = self.data["gpuinfo"].get("max_freq") # Fallback to old value
 
-        load_percent = None
+        load_percent = 0
         if cur_freq is not None and max_freq is not None and max_freq > 0:
             load_percent = round((cur_freq / max_freq) * 100, 1)
 
-        _LOGGER.info(f"GPU stats read: cur_freq={cur_freq}, max_freq={max_freq}, load_percent={load_percent}")
+        # Filtering logic
+        if load_percent > 0:
+            self._gpu_load_counter += 1
+        else:
+            self._gpu_load_counter = 0
 
-        # Prepare the final JSON payload
-        response_payload = {
+        should_update = (load_percent == 0) or (self._gpu_load_counter >= CONFIRMATION_COUNT)
+
+        if not should_update:
+            _LOGGER.debug(f"GPU load spike detected: {load_percent}%. Ignoring update.")
+            return # Keep old data
+
+        _LOGGER.debug(f"GPU stats updated: cur_freq={cur_freq}, max_freq={max_freq}, load_percent={load_percent}")
+
+        self.data["gpuinfo"] = {
             "vendor": "intel",
             "model": "Intel Graphics (from sysfs)",
             "load_percent": load_percent,
             "cur_freq": cur_freq,
             "max_freq": max_freq,
-            "temperature_celsius": None,  # Placeholder for future
-            "memory_used_percent": None,  # Placeholder for future
+            "temperature_celsius": self.data["gpuinfo"].get("temperature_celsius"),
+            "memory_used_percent": self.data["gpuinfo"].get("memory_used_percent"),
         }
-        self.data["gpuinfo"] = response_payload
 
     # ---------------------------
     #   get_raid
