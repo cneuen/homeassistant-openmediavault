@@ -1,3 +1,16 @@
+# ⚠️ Deprecated & archived — use SlyBase instead
+
+> This fork is **no longer maintained** and has been **archived**.
+>
+> Please use the actively-maintained, modernized successor, which **descends from this
+> fork** (it forked from here) and reimplements everything on a coordinator-based
+> architecture with tests, a Repairs flow, **selective per-resource monitoring** and
+> support for current Home Assistant versions:
+>
+> ### 👉 [SlyBase/homeassistant-openmediavault](https://github.com/SlyBase/homeassistant-openmediavault)
+
+---
+
 # OpenMediaVault integration for Home Assistant
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/tomaae/homeassistant-openmediavault?style=plastic)
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=plastic)](https://github.com/hacs/integration)
