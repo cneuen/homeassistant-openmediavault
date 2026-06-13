@@ -117,6 +117,20 @@ def model_update_items(
     if new_sensors:
         async_add_entities(new_sensors, True)
 
+    # Prune per-uid entities whose underlying object disappeared (e.g. a removed
+    # Docker container). Without this they linger forever, raise KeyError on every
+    # refresh and can desync the HA recorder. Only per-uid entities are touched;
+    # system sensors (no uid) are never pruned here.
+    for item_id in list(sensors):
+        entity = sensors[item_id]
+        if entity._uid and entity._uid not in omv_controller.data.get(
+            entity.entity_description.data_path, {}
+        ):
+            _LOGGER.debug("Removing stale entity %s (uid %s gone)", item_id, entity._uid)
+            sensors.pop(item_id)
+            if entity.hass:
+                entity.hass.async_create_task(entity.async_remove(force_remove=True))
+
 
 # ---------------------------
 #   OMVEntity
@@ -142,10 +156,11 @@ class OMVEntity:
 
     @property
     def _data(self) -> dict:
-        """Return the data for this entity."""
+        """Return the data for this entity (empty dict if it vanished)."""
+        path_data = self._ctrl.data.get(self.entity_description.data_path, {})
         if self._uid:
-            return self._ctrl.data[self.entity_description.data_path][self._uid]
-        return self._ctrl.data[self.entity_description.data_path]
+            return path_data.get(self._uid, {})
+        return path_data
 
     @property
     def name(self) -> str:
@@ -153,10 +168,11 @@ class OMVEntity:
         if not self._uid:
             return f"{self.entity_description.name}"
 
+        label = self._data.get(self.entity_description.data_name, self._uid)
         if self.entity_description.name:
-            return f"{self._data[self.entity_description.data_name]} {self.entity_description.name}"
+            return f"{label} {self.entity_description.name}"
 
-        return f"{self._data[self.entity_description.data_name]}"
+        return f"{label}"
 
     @property
     def unique_id(self) -> str:
@@ -168,8 +184,19 @@ class OMVEntity:
 
     @property
     def available(self) -> bool:
-        """Return if controller is available"""
-        return self._ctrl.connected()
+        """Return True only if the controller is up AND this entity's data exists.
+
+        For per-uid entities (e.g. one per Docker container), the uid disappears
+        from the controller data when the container is removed; without this guard
+        the entity stays "available" and `_data` raised KeyError on every refresh.
+        """
+        if not self._ctrl.connected():
+            return False
+        if self._uid:
+            return self._uid in self._ctrl.data.get(
+                self.entity_description.data_path, {}
+            )
+        return True
 
     @property
     def device_info(self) -> DeviceInfo:

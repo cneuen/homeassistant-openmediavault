@@ -58,8 +58,8 @@ class OMVSensor(OMVEntity, SensorEntity):
 
     @property
     def native_value(self) -> StateType | date | datetime | Decimal:
-        """Return the value reported by the sensor."""
-        return self._data[self.entity_description.data_attribute]
+        """Return the value reported by the sensor (None if data vanished)."""
+        return self._data.get(self.entity_description.data_attribute)
 
     @property
     def native_unit_of_measurement(self):
