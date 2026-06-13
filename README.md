@@ -97,6 +97,20 @@ This version incorporates the following pull requests from the original reposito
 - [Temperature and CPU Fix](https://github.com/tomaae/homeassistant-openmediavault/pull/160)
 - [Add SMART overall drive health to "disk" entry](https://github.com/tomaae/homeassistant-openmediavault/pull/159)
 
+## Bug Fixes
+
+### Stale per-container entities
+
+Per-container sensors (one entity per Docker container) were never removed when
+a container was deleted. Each orphaned entity then raised a `KeyError` on every
+update cycle, which could also desync the Home Assistant recorder
+(`StaleDataError`) and freeze history graphs.
+
+This fork now:
+- marks an entity **unavailable** instead of crashing when its container is gone, and
+- **automatically prunes** per-container entities once their container disappears
+  (system sensors are never touched).
+
 # Prerequisites
 
 This integration relies on information from the following system files:
